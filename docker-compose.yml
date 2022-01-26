@@ -135,8 +135,8 @@ services:
   taiga-front:
     image: taigaio/taiga-front:latest
     environment:
-      TAIGA_URL: "http://localhost:9000"
-      TAIGA_WEBSOCKETS_URL: "ws://localhost:9000"
+      TAIGA_URL: ${TAIGA_SITES_SCHEME}://${TAIGA_SITES_DOMAIN}
+      TAIGA_WEBSOCKETS_URL: ws://${TAIGA_SITES_DOMAIN}
       TAIGA_SUBPATH: "" # "" or "/subpath"
     labels:
       - "traefik.enable=false"
