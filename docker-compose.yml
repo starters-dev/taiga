@@ -1,0 +1,175 @@
+version: "3.7"
+
+x-environment: &default-back-environment # Database settings
+  POSTGRES_DB: ${DB_NAME}
+  POSTGRES_USER: ${DB_USER}
+  POSTGRES_PASSWORD: ${DB_PASS}
+  POSTGRES_HOST: ${DB_HOST}
+  # Taiga settings
+  TAIGA_SECRET_KEY: ${TAIGA_SECRET_KEY}
+  TAIGA_SITES_SCHEME: ${TAIGA_SITES_SCHEME}
+  TAIGA_SITES_DOMAIN: ${TAIGA_SITES_DOMAIN}
+  TAIGA_SUBPATH: ${TAIGA_SUBPATH} # "" or "/subpath"
+  # Email settings. Uncomment following lines and configure your SMTP server
+  # EMAIL_BACKEND: "django.core.mail.backends.smtp.EmailBackend"
+  # DEFAULT_FROM_EMAIL: "no-reply@example.com"
+  # EMAIL_USE_TLS: "False"
+  # EMAIL_USE_SSL: "False"
+  # EMAIL_HOST: "smtp.host.example.com"
+  # EMAIL_PORT: 587
+  # EMAIL_HOST_USER: "user"
+  # EMAIL_HOST_PASSWORD: "password"
+  # Rabbitmq settings
+  # Should be the same as in taiga-async-rabbitmq and taiga-events-rabbitmq
+  RABBITMQ_USER: ${RABBITMQ_USER}
+  RABBITMQ_PASS: ${RABBITMQ_PASS}
+  # Telemetry settings
+  ENABLE_TELEMETRY: "True"
+
+x-volumes: &default-back-volumes
+  - ./appdata/back/static:/taiga-back/static
+  - ./appdata/back/media:/taiga-back/media
+  # - ./config.py:/taiga-back/settings/config.py
+
+services:
+  proxy:
+    image: traefik:latest
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.http.address=:80"
+      - "--entrypoints.https.address=:443"
+      - "--certificatesresolvers.mydnschallenge.acme.dnschallenge=true"
+      - "--certificatesresolvers.mydnschallenge.acme.dnschallenge.provider=digitalocean"
+      - "--certificatesresolvers.mydnschallenge.acme.email=dev@batyr.io"
+      - "--certificatesresolvers.mydnschallenge.acme.storage=/acme.json"
+    environment:
+      - DO_AUTH_TOKEN=${DO_AUTH_TOKEN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "6969:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./acme/acme.json:/acme.json
+
+  taiga-gateway:
+    image: nginx:1.19-alpine
+    # ports:
+    #   - "9000:80"
+    volumes:
+      - ./taiga.conf:/etc/nginx/conf.d/default.conf
+      - ./appdata/back/static:/taiga/static
+      - ./appdata/back/media:/taiga/media
+    depends_on:
+      - taiga-front
+      - taiga-back
+      - taiga-events
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.taiga.rule=Host(`taiga.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.taiga.entryPoints=http"
+      - "traefik.http.routers.taiga.middlewares=https_redirect"
+      - "traefik.http.middlewares.https_redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.taiga_tls.rule=Host(`taiga.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.taiga_tls.entryPoints=https"
+      - "traefik.http.routers.taiga_tls.tls.certresolver=mydnschallenge"
+
+  taiga-db:
+    image: postgres:12.3
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - ./appdata/db:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
+
+  taiga-back:
+    image: taigaio/taiga-back:latest
+    environment: *default-back-environment
+    volumes: *default-back-volumes
+    depends_on:
+      - taiga-db
+      - taiga-events-rabbitmq
+      - taiga-async-rabbitmq
+    labels:
+      - "traefik.enable=false"
+
+  taiga-manage:
+    image: taigaio/taiga-back:latest
+    environment: *default-back-environment
+    depends_on:
+      - taiga-db
+    entrypoint: "python manage.py"
+    volumes: *default-back-volumes
+    labels:
+      - "traefik.enable=false"
+
+  taiga-async:
+    image: taigaio/taiga-back:latest
+    entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
+    environment: *default-back-environment
+    volumes: *default-back-volumes
+    depends_on:
+      - taiga-db
+      - taiga-back
+      - taiga-async-rabbitmq
+    labels:
+      - "traefik.enable=false"
+
+  taiga-async-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - ./appdata/mq:/var/lib/rabbitmq
+    labels:
+      - "traefik.enable=false"
+
+  taiga-front:
+    image: taigaio/taiga-front:latest
+    environment:
+      TAIGA_URL: "http://localhost:9000"
+      TAIGA_WEBSOCKETS_URL: "ws://localhost:9000"
+      TAIGA_SUBPATH: "" # "" or "/subpath"
+    labels:
+      - "traefik.enable=false"
+    # volumes:
+    #   - ./conf.json:/usr/share/nginx/html/conf.json
+
+  taiga-events:
+    image: taigaio/taiga-events:latest
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      TAIGA_SECRET_KEY: ${TAIGA_SECRET_KEY}
+    depends_on:
+      - taiga-events-rabbitmq
+    labels:
+      - "traefik.enable=false"
+
+  taiga-events-rabbitmq:
+    image: rabbitmq:3.8-management-alpine
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - ./appdata/mq:/var/lib/rabbitmq
+    labels:
+      - "traefik.enable=false"
+
+  taiga-protected:
+    image: taigaio/taiga-protected:latest
+    environment:
+      MAX_AGE: 360
+      SECRET_KEY: ${TAIGA_SECRET_KEY}
+    labels:
+      - "traefik.enable=false"
