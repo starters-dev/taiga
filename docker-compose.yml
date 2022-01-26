@@ -128,7 +128,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
     volumes:
-      - ./appdata/mq:/var/lib/rabbitmq
+      - ./appdata/mq/async:/var/lib/rabbitmq
     labels:
       - "traefik.enable=false"
 
@@ -162,7 +162,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
     volumes:
-      - ./appdata/mq:/var/lib/rabbitmq
+      - ./appdata/mq/events:/var/lib/rabbitmq
     labels:
       - "traefik.enable=false"
 
