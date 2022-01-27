@@ -98,16 +98,6 @@ services:
     labels:
       - "traefik.enable=false"
 
-  taiga-manage:
-    image: taigaio/taiga-back:latest
-    environment: *default-back-environment
-    depends_on:
-      - taiga-db
-    entrypoint: "python manage.py"
-    volumes: *default-back-volumes
-    labels:
-      - "traefik.enable=false"
-
   taiga-async:
     image: taigaio/taiga-back:latest
     entrypoint: ["/taiga-back/docker/async_entrypoint.sh"]
@@ -136,8 +126,8 @@ services:
     image: taigaio/taiga-front:latest
     environment:
       TAIGA_URL: ${TAIGA_SITES_SCHEME}://${TAIGA_SITES_DOMAIN}
-      TAIGA_WEBSOCKETS_URL: ws://${TAIGA_SITES_DOMAIN}
-      TAIGA_SUBPATH: "" # "" or "/subpath"
+      TAIGA_WEBSOCKETS_URL: wss://${TAIGA_SITES_DOMAIN}
+      TAIGA_SUBPATH: ${TAIGA_SUBPATH} # "" or "/subpath"
     labels:
       - "traefik.enable=false"
     # volumes:
