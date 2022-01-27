@@ -1,8 +1,8 @@
 # Taiga (Project Management Tool) Self-Hosted
 
-[Focalboard](https://www.focalboard.com) is an open source, self-hosted alternative to Trello, Notion, and Asana.
+[Taiga](https://www.taiga.io) is an open source, self-hosted project management tool.
 
-This repo is used to configure a Focalboard (Mattermost Boards) in the Cloud (DigitalOcean.com)
+This repo is used to configure Taiga in the Cloud (DigitalOcean.com)
 
 1. Connect to the remote droplet
 
@@ -13,7 +13,7 @@ This repo is used to configure a Focalboard (Mattermost Boards) in the Cloud (Di
 2. Clone this repo
 
 ```
-> git clone https://user:pass@github.com/kanzitelli/focalboard-traefik.git backend
+> git clone https://user:pass@github.com/kanzitelli/taiga-traefik.git backend
 > cd backend
 ```
 
@@ -28,17 +28,25 @@ Example of `.env`:
 ```
 # [SYSTEM]
 DOMAIN_NAME=domain.com
-DO_AUTH_TOKEN=XXXXXXXXXXXXXX # get it in DO API
+DO_AUTH_TOKEN=XXXXXXXXXXXXXXXX
 
-# [FOCALBOARD]
-VIRTUAL_HOST=localhost
-VIRTUAL_PORT=8000
-VIRTUAL_PROTO=http
+# [TAIGA]
+TAIGA_SECRET_KEY=EbAtKj489gh97g29gvn94g9
+TAIGA_SITES_DOMAIN=taiga.domain.com
+TAIGA_SITES_SCHEME=https
+TAIGA_SUBPATH=
 
 # [POSTGRES]
-DB_NAME=boards
-DB_USER=boards_admin
-DB_PASS=BoArds_PassWORD
+DB_NAME=taiga
+DB_USER=taiga_admin
+DB_PASS=taigapAsdf21j20h20
+DB_HOST=taiga-db
+
+# [RABBITMQ]
+RABBITMQ_USER=taiga_mq_user
+RABBITMQ_PASS=TaiGAMQpsfopfp3
+RABBITMQ_VHOST=taiga
+RABBITMQ_ERLANG_COOKIE=KGj3v94uvbh08h249
 ```
 
 4. Run `build` script
@@ -48,3 +56,11 @@ DB_PASS=BoArds_PassWORD
 ```
 
 It will setup everything, including ACME (https certificates), PostgreSQL and will run docker.
+
+5. Create super user
+
+```
+> bash scripts/manage.py createsuperuser
+```
+
+This is based on the original [Taiga docker repo](https://github.com/kaleidos-ventures/taiga-docker).
